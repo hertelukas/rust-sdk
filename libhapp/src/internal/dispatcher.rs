@@ -7,40 +7,41 @@ use std::os::raw::c_ulong;
 
 use edge::ocall::{EDGE_SYSCALL, MAX_OCALL};
 
-use crate::{Error, Status};
-#[cfg(feature = "debug_memory")]
-use crate::internal::alloc;
 use crate::ecall::Emulator;
 use crate::edge::EdgeCall;
 use crate::enclave::Handle;
-use crate::memory::uintptr;
-use crate::ocall::{Listener, OCall};
 #[cfg(feature = "debug_memory")]
-use crate::ocall::{CallID};
+use crate::internal::alloc;
+use crate::memory::uintptr;
+#[cfg(feature = "debug_memory")]
+use crate::ocall::CallID;
+use crate::ocall::{Listener, OCall};
+use crate::{Error, Status};
 
 pub(crate) struct Dispatcher<'a> {
     /// Emulator for the ecalls
     ecall: Emulator,
     /// A table mapping call indetifiers to Listeners
-    table: [Option<&'a dyn Listener>; MAX_OCALL as usize]
+    table: [Option<&'a dyn Listener>; MAX_OCALL],
 }
 
-impl <'a>Dispatcher<'a> {
-
+impl<'a> Dispatcher<'a> {
     pub(crate) fn new() -> Self {
-        Self{ecall: Emulator::new(),
-             table: [None; MAX_OCALL as usize]}
+        Self {
+            ecall: Emulator::new(),
+            table: [None; MAX_OCALL],
+        }
     }
 
     pub(crate) fn handle(&mut self) -> Result<Handle, Error> {
-        return self.ecall.handle();
+        self.ecall.handle()
     }
 
     #[cfg(not(feature = "debug_memory"))]
     fn dispatch_internal(&self, cid: u32, ctx: &mut OCall) -> Status {
         if cid == EDGE_SYSCALL {
             // TODO: not supported
-            return Status::SyscallFailed
+            return Status::SyscallFailed;
         }
 
         self.ecall.on_ocall(ctx)
@@ -50,7 +51,7 @@ impl <'a>Dispatcher<'a> {
     fn dispatch_internal(&self, cid: u32, ctx: &mut OCall) -> Status {
         if cid == EDGE_SYSCALL {
             // TODO: not supported
-            return Status::SyscallFailed
+            return Status::SyscallFailed;
         }
 
         if cid == CallID::DbgMemory as u32 {
@@ -60,12 +61,12 @@ impl <'a>Dispatcher<'a> {
         self.ecall.on_ocall(ctx)
     }
 
-    pub(crate) fn dispatch_ocall(&self,
-                                 edge_call: &mut EdgeCall,
-                                 shrd_base: uintptr,
-                                 shrd_size: usize)
-                                 -> Result<(), Error> {
-
+    pub(crate) fn dispatch_ocall(
+        &self,
+        edge_call: &mut EdgeCall,
+        shrd_base: uintptr,
+        shrd_size: usize,
+    ) -> Result<(), Error> {
         if edge_call.offset > shrd_size {
             edge_call.ret.status = Status::BadOffset as c_ulong;
             return Ok(()); // Enclave handles error
@@ -79,7 +80,7 @@ impl <'a>Dispatcher<'a> {
         assert!(edge_call.offset >= std::mem::size_of::<EdgeCall>());
 
         let cid = edge_call.cid as u32;
-        let mut ctx  = OCall::wrap(edge_call, shrd_base, shrd_size);
+        let mut ctx = OCall::wrap(edge_call, shrd_base, shrd_size);
 
         /* ECall emulation and some other internally implemented
          * call handlers are not in the listener list, mostly because
@@ -111,11 +112,7 @@ impl <'a>Dispatcher<'a> {
         Ok(())
     }
 
-    pub(crate) fn register_ocall(&mut self,
-                                 cid: u32,
-                                 cb:  &'a dyn Listener)
-                                 -> Result<(), Error> {
-
+    pub(crate) fn register_ocall(&mut self, cid: u32, cb: &'a dyn Listener) -> Result<(), Error> {
         if cid as usize >= self.table.len() {
             return Err(Error::BadArgument);
         }

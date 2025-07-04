@@ -8,7 +8,7 @@ use crate::internal::syscall;
 use crate::Status;
 use edge::ocall::{RequestHeader, ResponseHeader};
 
-pub use edge::ocall::{CallID};
+pub use edge::ocall::CallID;
 
 /// Makes a call to the host application (ocall)
 ///
@@ -32,7 +32,11 @@ pub fn ocall(cid: u64, in_buf: &[u8], out_buf: &mut [u8]) -> Status {
     let rv = syscall::ocall(cid, in_buf, out_buf);
     // TODO: Currently Eyrie always returns 0 or 1 for ocall:
     //return Status::from_usize(rv);
-    return if rv == 0 { Status::Success } else { Status::Error };
+    if rv == 0 {
+        Status::Success
+    } else {
+        Status::Error
+    }
 }
 
 #[deprecated]
@@ -40,7 +44,11 @@ pub fn ocall_inout(cid: u64, buf: &mut [u8], ilen: usize, olen: usize) -> Status
     let rv = syscall::ocall_inout(cid, buf, ilen, olen);
     // TODO: Currently Eyrie always returns 0 or 1 for ocall:
     //return Status::from_usize(rv);
-    return if rv == 0 { Status::Success } else { Status::Error };
+    if rv == 0 {
+        Status::Success
+    } else {
+        Status::Error
+    }
 }
 
 /// Makes a call to the host application (ocall)
@@ -63,9 +71,12 @@ pub fn ocall_out(cid: u64, in_buf: &[u8]) -> Status {
     let rv = syscall::ocall_out(cid, in_buf);
     // TODO: Currently Eyrie always returns 0 or 1 for ocall:
     //return Status::from_usize(rv);
-    return if rv == 0 { Status::Success } else { Status::Error };
+    if rv == 0 {
+        Status::Success
+    } else {
+        Status::Error
+    }
 }
-
 
 /// Makes a call to the host application (ocall).
 ///
@@ -87,9 +98,12 @@ pub fn ocall_in(cid: u64, out_buf: &mut [u8]) -> Status {
     let rv = syscall::ocall_in(cid, out_buf);
     // TODO: Currently Eyrie always returns 0 or 1 for ocall:
     //return Status::from_usize(rv);
-    return if rv == 0 { Status::Success } else { Status::Error };
+    if rv == 0 {
+        Status::Success
+    } else {
+        Status::Error
+    }
 }
-
 
 /// Makes a call to the host application (ocall) with no input or
 /// output buffers.
@@ -107,23 +121,26 @@ pub fn ocall_cid(cid: u64) -> Status {
     let rv = syscall::ocall_cid(cid);
     // TODO: Currently Eyrie always returns 0 or 1 for ocall:
     //return Status::from_usize(rv);
-    return if rv == 0 { Status::Success } else { Status::Error };
+    if rv == 0 {
+        Status::Success
+    } else {
+        Status::Error
+    }
 }
 
 /// OCall structure for automatic management of request and response buffers
 pub struct OCall<'a> {
     /// Buffer used for payload
-    buffer:  &'a mut [u8],
+    buffer: &'a mut [u8],
     /// Request header
-    req: RequestHeader,   // set before call
+    req: RequestHeader, // set before call
     /// Response header
-    res: ResponseHeader,  // set after call
+    res: ResponseHeader, // set after call
     /// Payload size
-    req_len: usize,       // set before call
+    req_len: usize, // set before call
 }
 
 impl<'a> OCall<'a> {
-
     /// Size of the request header in bytes
     const REQ_HDR_SIZE: usize = core::mem::size_of::<RequestHeader>();
     /// Size of the response header in bytes
@@ -147,15 +164,17 @@ impl<'a> OCall<'a> {
             return Err(Status::ShortBuffer);
         }
 
-        Ok(Self{buffer:  buffer,
-                req: RequestHeader::new(size),
-                res: ResponseHeader::new(Status::Unknown, 0),
-                req_len: 0})
+        Ok(Self {
+            buffer,
+            req: RequestHeader::new(size),
+            res: ResponseHeader::new(Status::Unknown, 0),
+            req_len: 0,
+        })
     }
 
     /// Get request buffer as a mutable byte slice
-    pub fn request<'b>(&'b mut self) -> &'b mut [u8] {
-        &mut self.buffer[OCall::REQ_HDR_SIZE .. ]
+    pub fn request(&mut self) -> &mut [u8] {
+        &mut self.buffer[OCall::REQ_HDR_SIZE..]
     }
 
     /// Set request payload size
@@ -166,11 +185,11 @@ impl<'a> OCall<'a> {
         }
 
         self.req_len = total;
-        return true;
+        true
     }
 
     /// Get response buffer as a byte slice
-    pub fn response<'b>(&'b self) -> &'b [u8] {
+    pub fn response(&self) -> &[u8] {
         let start = OCall::RES_HDR_SIZE;
         let end = start + self.res.size;
         let end = if end > self.buffer.len() {
@@ -178,12 +197,12 @@ impl<'a> OCall<'a> {
         } else {
             end
         };
-        &self.buffer[start .. end]
+        &self.buffer[start..end]
     }
 
     /// Get response payload size
     pub fn response_length(&self) -> usize {
-        return self.res.size;
+        self.res.size
     }
 
     /// Execute an ocall
@@ -195,15 +214,13 @@ impl<'a> OCall<'a> {
     ///
 
     pub fn call(&mut self, cid: u64, expect_data: bool) -> Result<Status, Status> {
-
         if !expect_data {
             self.req.max = 0;
         }
 
         let hdr = self.req.as_bytes();
-        self.buffer[0 .. hdr.len()].copy_from_slice(hdr);
-        let status = syscall::ocall_inout(cid, &mut self.buffer,
-                                          self.req_len, self.req.max);
+        self.buffer[0..hdr.len()].copy_from_slice(hdr);
+        let status = syscall::ocall_inout(cid, self.buffer, self.req_len, self.req.max);
 
         if status != 0 {
             return Err(Status::SyscallFailed);
@@ -213,19 +230,21 @@ impl<'a> OCall<'a> {
             return Ok(Status::Success);
         }
 
-        let hdr = &self.buffer[0 .. OCall::RES_HDR_SIZE];
+        let hdr = &self.buffer[0..OCall::RES_HDR_SIZE];
         self.res = match ResponseHeader::from_bytes(hdr) {
             Ok(res) => res,
-            Err(_) => { return Err(Status::ShortBuffer); }
+            Err(_) => {
+                return Err(Status::ShortBuffer);
+            }
         };
 
-        let total =  self.res.size + OCall::RES_HDR_SIZE;
+        let total = self.res.size + OCall::RES_HDR_SIZE;
         if total > self.buffer.len() {
             // TODO: basically the call succeeded, but not all input was
             //       received
             return Err(Status::ShortBuffer);
         }
 
-        return Ok(Status::from_u32(self.res.status));
+        Ok(self.res.status.into())
     }
 }

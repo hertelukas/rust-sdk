@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (C) 2022 VTT Technical Research Centre of Finland Ltd
 
-
 use std::env;
 
 fn main() {

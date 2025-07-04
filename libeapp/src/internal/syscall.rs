@@ -7,23 +7,21 @@ extern crate core;
 
 use core::arch::asm;
 use core::ffi::c_void;
-use core::ptr::null_mut;
 use core::ptr::null;
+use core::ptr::null_mut;
 
 // Syscall numbers for Keystone Eyrie:
-const SYSCALL_OCALL:           usize = 1001;
-const SYSCALL_SHAREDCOPY:      usize = 1002;
-const SYSCALL_ATTEST_ENCLAVE:  usize = 1003;
+const SYSCALL_OCALL: usize = 1001;
+const SYSCALL_SHAREDCOPY: usize = 1002;
+const SYSCALL_ATTEST_ENCLAVE: usize = 1003;
 const SYSCALL_GET_SEALING_KEY: usize = 1004;
-const SYSCALL_EXIT:            usize = 1101;
+const SYSCALL_EXIT: usize = 1101;
 
 /// Perfom a system call to encalve runtime (Eyrie)
 ///
 /// See: handle_syscall() in syscall.c of keystone-runtime
 
-fn syscall(call: usize, arg0: usize, arg1: usize,
-                  arg2: usize, arg3: usize, arg4: usize) -> usize {
-
+fn syscall(call: usize, arg0: usize, arg1: usize, arg2: usize, arg3: usize, arg4: usize) -> usize {
     let rv;
 
     unsafe {
@@ -33,11 +31,17 @@ fn syscall(call: usize, arg0: usize, arg1: usize,
              lateout("a0") rv);
     }
 
-    return rv;
+    rv
 }
 
-fn syscall_noreturn(call: usize, arg0: usize, arg1: usize,
-                           arg2: usize, arg3: usize, arg4: usize) -> ! {
+fn syscall_noreturn(
+    call: usize,
+    arg0: usize,
+    arg1: usize,
+    arg2: usize,
+    arg3: usize,
+    arg4: usize,
+) -> ! {
     unsafe {
         asm!("ecall",
              in("a0") arg0, in("a1") arg1, in("a2") arg2,
@@ -47,16 +51,15 @@ fn syscall_noreturn(call: usize, arg0: usize, arg1: usize,
 }
 
 #[inline(always)]
-fn sys_ocall(cid:  u64,
-             ibuf: *const c_void,
-             ilen: u64,
-             obuf: *mut c_void,
-             olen: u64)
-             -> usize
-{
-    return syscall(SYSCALL_OCALL, cid  as usize,
-                   ibuf as usize, ilen as usize,
-                   obuf as usize, olen as usize);
+fn sys_ocall(cid: u64, ibuf: *const c_void, ilen: u64, obuf: *mut c_void, olen: u64) -> usize {
+    syscall(
+        SYSCALL_OCALL,
+        cid as usize,
+        ibuf as usize,
+        ilen as usize,
+        obuf as usize,
+        olen as usize,
+    )
 }
 
 /// Call to host application (ocall)
@@ -78,12 +81,14 @@ fn sys_ocall(cid:  u64,
 
 #[inline(always)]
 #[allow(dead_code)]
-pub(crate) fn ocall(cid: u64, ibuf: & [u8], obuf: & mut [u8]) -> usize {
-    return sys_ocall(cid,
-                     ibuf.as_ptr() as *const c_void,
-                     ibuf.len() as u64,
-                     obuf.as_mut_ptr() as *mut c_void,
-                     obuf.len() as u64);
+pub(crate) fn ocall(cid: u64, ibuf: &[u8], obuf: &mut [u8]) -> usize {
+    sys_ocall(
+        cid,
+        ibuf.as_ptr() as *const c_void,
+        ibuf.len() as u64,
+        obuf.as_mut_ptr() as *mut c_void,
+        obuf.len() as u64,
+    )
 }
 
 /// Call to host application (ocall)
@@ -106,16 +111,14 @@ pub(crate) fn ocall(cid: u64, ibuf: & [u8], obuf: & mut [u8]) -> usize {
 
 #[inline(always)]
 #[allow(dead_code)]
-pub(crate) fn ocall_inout(cid:  u64,
-                          buf:  &mut [u8],
-                          ilen: usize,
-                          olen: usize)
-                          -> usize {
-    return sys_ocall(cid,
-                     buf.as_ptr() as *const c_void,
-                     ilen as u64,
-                     buf.as_mut_ptr() as *mut c_void,
-                     olen as u64);
+pub(crate) fn ocall_inout(cid: u64, buf: &mut [u8], ilen: usize, olen: usize) -> usize {
+    sys_ocall(
+        cid,
+        buf.as_ptr() as *const c_void,
+        ilen as u64,
+        buf.as_mut_ptr() as *mut c_void,
+        olen as u64,
+    )
 }
 
 /// Call to host application (ocall)
@@ -136,11 +139,13 @@ pub(crate) fn ocall_inout(cid:  u64,
 #[inline(always)]
 #[allow(dead_code)]
 pub(crate) fn ocall_out(cid: u64, ibuf: &[u8]) -> usize {
-    return sys_ocall(cid,
-                     ibuf.as_ptr() as *const c_void,
-                     ibuf.len() as u64,
-                     null_mut(),
-                     0);
+    sys_ocall(
+        cid,
+        ibuf.as_ptr() as *const c_void,
+        ibuf.len() as u64,
+        null_mut(),
+        0,
+    )
 }
 
 /// Call to host application (ocall)
@@ -161,11 +166,13 @@ pub(crate) fn ocall_out(cid: u64, ibuf: &[u8]) -> usize {
 #[inline(always)]
 #[allow(dead_code)]
 pub(crate) fn ocall_in(cid: u64, obuf: &mut [u8]) -> usize {
-    return sys_ocall(cid,
-                     null(),
-                     0,
-                     obuf.as_ptr() as *mut c_void,
-                     obuf.len() as u64) ;
+    sys_ocall(
+        cid,
+        null(),
+        0,
+        obuf.as_ptr() as *mut c_void,
+        obuf.len() as u64,
+    )
 }
 
 /// Call host application (ocall) with no input or output buffers.
@@ -181,7 +188,7 @@ pub(crate) fn ocall_in(cid: u64, obuf: &mut [u8]) -> usize {
 #[inline(always)]
 #[allow(dead_code)]
 pub(crate) fn ocall_cid(cid: u64) -> usize {
-    return sys_ocall(cid, null(), 0, null_mut(), 0);
+    sys_ocall(cid, null(), 0, null_mut(), 0)
 }
 
 /// Terminate the enclave application
@@ -210,13 +217,15 @@ pub(crate) fn exit(value: u64) -> ! {
 /// 0 if the call succeeded, 1 otherwise (as returned by Eyrie)
 
 #[inline(always)]
-pub(crate) fn attest_enclave(to: &mut [u8], nonce: &[u8]) -> usize
-{
-    return syscall(SYSCALL_ATTEST_ENCLAVE,
-                   to.as_mut_ptr() as *mut c_void as usize,
-                   nonce.as_ptr() as *const c_void as usize,
-                   nonce.len() as u64 as usize,
-                   0, 0);
+pub(crate) fn attest_enclave(to: &mut [u8], nonce: &[u8]) -> usize {
+    syscall(
+        SYSCALL_ATTEST_ENCLAVE,
+        to.as_mut_ptr() as *mut c_void as usize,
+        nonce.as_ptr() as *const c_void as usize,
+        nonce.len() as u64 as usize,
+        0,
+        0,
+    )
 }
 
 /// Copy data from shared memory
@@ -230,19 +239,22 @@ pub(crate) fn attest_enclave(to: &mut [u8], nonce: &[u8]) -> usize
 ///
 /// 0 if the call succeeded, 1 otherwise (as returned by Eyrie)
 
-
 #[inline(always)]
 #[allow(dead_code)]
 pub(crate) fn copy_from_shared(to: &mut [u8], from: usize, n: usize) -> usize {
-
     // Check that all data copied actually fits into 'to'
     if to.len() < n {
         return 1; // TODO: ?
     }
 
-    return syscall(SYSCALL_SHAREDCOPY,
-                   to.as_mut_ptr() as *mut c_void as usize,
-                   from, n, 0, 0);
+    syscall(
+        SYSCALL_SHAREDCOPY,
+        to.as_mut_ptr() as *mut c_void as usize,
+        from,
+        n,
+        0,
+        0,
+    )
 }
 
 /// Retrieve enclave instance specific sealing key from the security monitor
@@ -257,13 +269,11 @@ pub(crate) fn copy_from_shared(to: &mut [u8], from: usize, n: usize) -> usize {
 ///
 /// 0 if the call succeeded, 1 otherwise (as returned by Eyrie)
 
-
 #[inline(always)]
 #[allow(dead_code)]
 pub(crate) fn sealing_key(to: &mut [u8], ident: &[u8]) -> usize {
-
     const SEALING_KEY_LENGTH: usize = 128;
-    const SIGNATURE_LENGTH: usize   = 64;
+    const SIGNATURE_LENGTH: usize = 64;
 
     /* After the system call completes sucessfully, 'to' contains
      * the sealing key (the first 'SEALING_KEY_LENGTH' bytes) and
@@ -274,10 +284,12 @@ pub(crate) fn sealing_key(to: &mut [u8], ident: &[u8]) -> usize {
         return usize::MAX;
     }
 
-    return syscall(SYSCALL_GET_SEALING_KEY,
-                   to.as_mut_ptr() as *mut c_void as usize,
-                   to.len() as u64 as usize,
-                   ident.as_ptr() as *const c_void as usize,
-                   ident.len() as u64 as usize,
-                   0);
+    syscall(
+        SYSCALL_GET_SEALING_KEY,
+        to.as_mut_ptr() as *mut c_void as usize,
+        to.len() as u64 as usize,
+        ident.as_ptr() as *const c_void as usize,
+        ident.len() as u64 as usize,
+        0,
+    )
 }

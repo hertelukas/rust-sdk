@@ -5,8 +5,8 @@
 use std::alloc::Layout;
 use std::collections::HashMap;
 
-use crate::Error;
 use crate::device::Device;
+use crate::Error;
 
 /* RISC-V definitions: */
 #[allow(dead_code)]
@@ -40,7 +40,7 @@ const PTE_A: usize = 0x040; // Accessed
 #[allow(dead_code)]
 const PTE_D: usize = 0x080; // Dirty
 #[allow(dead_code)]
-const PTE_SOFT: usize =  0x300; // Reserved for Software
+const PTE_SOFT: usize = 0x300; // Reserved for Software
 
 #[allow(non_camel_case_types)]
 pub(crate) type uintptr = usize;
@@ -48,7 +48,7 @@ pub(crate) type uintptr = usize;
 #[allow(dead_code)]
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub(crate) enum PageMode {
-    RuntimeNoExec ,
+    RuntimeNoExec,
     UserNoExec,
     RuntimeFull,
     UserFull,
@@ -58,18 +58,13 @@ pub(crate) enum PageMode {
 impl PageMode {
     #[allow(dead_code)]
     fn as_usize(&self) -> usize {
-        return match *self {
-            PageMode::UserNoExec =>
-                PTE_D | PTE_A | PTE_R | PTE_W | PTE_U | PTE_V,
-            PageMode::RuntimeNoExec =>
-               PTE_D | PTE_A | PTE_R | PTE_W | PTE_V,
-            PageMode::RuntimeFull =>
-                PTE_D | PTE_A | PTE_R | PTE_W | PTE_X | PTE_V,
-            PageMode::UserFull =>
-                PTE_D | PTE_A | PTE_R | PTE_W | PTE_X | PTE_U | PTE_V,
-            PageMode::SharedFull =>
-                PTE_D | PTE_A | PTE_R | PTE_W | PTE_V,
-        };
+        match *self {
+            PageMode::UserNoExec => PTE_D | PTE_A | PTE_R | PTE_W | PTE_U | PTE_V,
+            PageMode::RuntimeNoExec => PTE_D | PTE_A | PTE_R | PTE_W | PTE_V,
+            PageMode::RuntimeFull => PTE_D | PTE_A | PTE_R | PTE_W | PTE_X | PTE_V,
+            PageMode::UserFull => PTE_D | PTE_A | PTE_R | PTE_W | PTE_X | PTE_U | PTE_V,
+            PageMode::SharedFull => PTE_D | PTE_A | PTE_R | PTE_W | PTE_V,
+        }
     }
 }
 
@@ -78,7 +73,7 @@ pub(crate) fn is_aligned(addr: uintptr, align: usize) -> bool {
 }
 
 pub(crate) fn round_up(n: usize, b: usize) -> usize {
-    (((n - 1 as usize) >> b) + 1 as usize) << b
+    (((n - 1_usize) >> b) + 1_usize) << b
 }
 
 pub(crate) fn round_down(n: usize, b: usize) -> usize {
@@ -86,30 +81,33 @@ pub(crate) fn round_down(n: usize, b: usize) -> usize {
 }
 
 pub(crate) fn ceil(n: usize, d: usize) -> usize {
-    n / d + (n % d != 0) as usize
+    n / d + !n.is_multiple_of(d) as usize
 }
 
 struct MemoryArea {
-    size:        usize,   // Total memory area size
-    base:        *mut u8, // Actual memory base pointer
-    base_offset: usize,   // Offset to memory base (currently always zero)
-    free_offset: usize,   // Offset to the next free page
+    size: usize,        // Total memory area size
+    base: *mut u8,      // Actual memory base pointer
+    base_offset: usize, // Offset to memory base (currently always zero)
+    free_offset: usize, // Offset to the next free page
 }
 
 impl MemoryArea {
-
-    fn new(base: *mut u8,size: usize) -> Self {
-        Self {size:        size,
-              base:        base,
-              base_offset: 0,
-              free_offset: 0}
+    fn new(base: *mut u8, size: usize) -> Self {
+        Self {
+            size,
+            base,
+            base_offset: 0,
+            free_offset: 0,
+        }
     }
 
     fn empty() -> Self {
-        Self {size:        0,
-              base:        std::ptr::null_mut(),
-              base_offset: 0,
-              free_offset: 0}
+        Self {
+            size: 0,
+            base: std::ptr::null_mut(),
+            base_offset: 0,
+            free_offset: 0,
+        }
     }
 
     fn base_addr(&self) -> uintptr {
@@ -123,8 +121,10 @@ impl MemoryArea {
 
     fn top(&self) -> uintptr {
         unsafe {
-	    self.base.add(self.base_offset + self.free_offset).expose_provenance()
-	}
+            self.base
+                .add(self.base_offset + self.free_offset)
+                .expose_provenance()
+        }
     }
 
     fn alloc_page(&mut self) -> Result<Page, Error> {
@@ -144,8 +144,7 @@ pub(crate) struct Page<'a> {
     content: &'a mut [u8],
 }
 
-impl <'a>Page<'a>  {
-
+impl<'a> Page<'a> {
     pub(crate) const SIZE: usize = RISCV_PGSIZE;
     pub(crate) const BITS: usize = RISCV_PGSHIFT;
 
@@ -155,35 +154,30 @@ impl <'a>Page<'a>  {
             std::slice::from_raw_parts_mut(ptr, Page::SIZE)
         };
 
-        return Self{content: content};
+        Self { content }
     }
 
     fn base_addr(&self) -> uintptr {
         self.content.as_ptr().expose_provenance()
     }
 
-    pub(crate) fn write(&mut self,
-                        offset: usize,
-                        data:   &[u8],
-                        zero:   bool)
-                        -> bool {
-
+    pub(crate) fn write(&mut self, offset: usize, data: &[u8], zero: bool) -> bool {
         let end = offset + data.len();
         if end > Page::SIZE {
             return false;
         }
 
         if zero && offset > 0 {
-            self.content[0 .. offset].fill(0);
+            self.content[0..offset].fill(0);
         }
 
-        self.content[offset .. end].clone_from_slice(data);
+        self.content[offset..end].clone_from_slice(data);
 
         if zero && end < Page::SIZE {
-            self.content[end .. Page::SIZE].fill(0);
+            self.content[end..Page::SIZE].fill(0);
         }
 
-        return true;
+        true
     }
 
     #[allow(dead_code)]
@@ -193,51 +187,54 @@ impl <'a>Page<'a>  {
 
     #[allow(dead_code)]
     pub(crate) fn content(&self) -> &[u8] {
-        return self.content;
+        self.content
     }
 }
 
 pub(crate) struct Memory<'a> {
-    device:   Option<&'a Device>,
+    device: Option<&'a Device>,
     // Only present if device is present
     mappings: Option<HashMap<uintptr, uintptr>>,
     priv_mem: MemoryArea,
     shrd_mem: MemoryArea,
 }
 
-impl <'a>Memory<'a> {
-
-    pub(crate) fn new(device:    Option<&'a Device>,
-               phys_addr: uintptr,
-               min_pages: usize)
-               -> Result<Self, Error> {
-
+impl<'a> Memory<'a> {
+    pub(crate) fn new(
+        device: Option<&'a Device>,
+        phys_addr: uintptr,
+        min_pages: usize,
+    ) -> Result<Self, Error> {
         let pm_size = min_pages * Page::SIZE;
-        return if let Some(ref _dev) = device {
+        if let Some(_dev) = device {
             let base = std::ptr::with_exposed_provenance_mut::<u8>(phys_addr);
-            Ok(Self {device:   device,
-                     mappings: Some(HashMap::new()),
-                     priv_mem: MemoryArea::new(base, pm_size),
-                     shrd_mem: MemoryArea::empty() }) // Not allocated yet
+            Ok(Self {
+                device,
+                mappings: Some(HashMap::new()),
+                priv_mem: MemoryArea::new(base, pm_size),
+                shrd_mem: MemoryArea::empty(),
+            }) // Not allocated yet
         } else {
             let layout = Layout::from_size_align(pm_size, Page::SIZE).unwrap();
-            let base   = unsafe { std::alloc::alloc_zeroed(layout) };
-            if base == std::ptr::null_mut() {
+            let base = unsafe { std::alloc::alloc_zeroed(layout) };
+            if base.is_null() {
                 return Err(Error::OutOfMemory);
             }
 
             let priv_mem = MemoryArea::new(base, pm_size);
-            Ok(Self {device:   device,
-                     mappings: None,
-                     priv_mem: priv_mem,
-                     shrd_mem: MemoryArea::empty() }) // Not allocated yet
-        };
+            Ok(Self {
+                device,
+                mappings: None,
+                priv_mem,
+                shrd_mem: MemoryArea::empty(),
+            }) // Not allocated yet
+        }
     }
 
     fn map_priv_page(&mut self, page_addr: uintptr) -> Result<uintptr, Error> {
-        if let Some(ref device) = self.device {
+        if let Some(device) = self.device {
             let offset = page_addr - self.priv_mem.base_addr();
-            let addr   = device.map(offset, Page::SIZE)?;
+            let addr = device.map(offset, Page::SIZE)?;
             assert!(self.mappings.is_some());
             self.mappings.as_mut().unwrap().insert(page_addr, addr);
             Ok(addr)
@@ -246,72 +243,62 @@ impl <'a>Memory<'a> {
         }
     }
 
-    pub(crate) fn alloc_shared_memory(&mut self,
-                                      size: usize)
-                                      -> Result<uintptr, Error> {
-
-        if self.shrd_mem.base != std::ptr::null_mut() {
+    pub(crate) fn alloc_shared_memory(&mut self, size: usize) -> Result<uintptr, Error> {
+        if !self.shrd_mem.base.is_null() {
             return Err(Error::BadState);
         }
 
-        if let Some(ref device) = self.device {
+        if let Some(device) = self.device {
             let addr = device.init_shared_memory(size)?;
             self.shrd_mem.size = size;
             self.shrd_mem.base = std::ptr::with_exposed_provenance_mut::<u8>(addr);
             self.shrd_mem.base_offset = 0;
             self.shrd_mem.free_offset = 0;
-            return Ok(addr);
+            Ok(addr)
         } else {
             let layout = Layout::from_size_align(size, Page::SIZE).unwrap();
             self.shrd_mem.size = size;
             self.shrd_mem.base = unsafe { std::alloc::alloc_zeroed(layout) };
             self.shrd_mem.base_offset = 0;
             self.shrd_mem.free_offset = 0;
-            return Ok(self.shrd_mem.base_addr());
+            Ok(self.shrd_mem.base_addr())
         }
     }
 
-    pub(crate) fn current_top(&self) -> uintptr  {
-        return self.priv_mem.top();
+    pub(crate) fn current_top(&self) -> uintptr {
+        self.priv_mem.top()
     }
 
-    pub(crate) fn alloc_stack(&mut self,
-                              min_vaddr: uintptr,
-                              num_pages: usize)
-                              -> usize {
-
-        for count in 0 .. num_pages {
+    pub(crate) fn alloc_stack(&mut self, min_vaddr: uintptr, num_pages: usize) -> usize {
+        for count in 0..num_pages {
             let page_addr = min_vaddr + count * Page::SIZE;
             if self.alloc_page(page_addr, PageMode::UserNoExec).is_err() {
                 return count;
             }
         }
 
-        return num_pages;
+        num_pages
     }
 
-    pub(crate) fn alloc_page(&mut self,
-                             _vaddr: uintptr,
-                             mode: PageMode)
-                             -> Result<Option<Page>, Error> {
+    pub(crate) fn alloc_page(
+        &mut self,
+        _vaddr: uintptr,
+        mode: PageMode,
+    ) -> Result<Option<Page>, Error> {
+        let memory = if mode == PageMode::SharedFull {
+            &mut self.shrd_mem
+        } else {
+            &mut self.priv_mem
+        };
 
-        let memory =
-            if mode == PageMode::SharedFull {
-                &mut self.shrd_mem
-            } else {
-                &mut self.priv_mem
-            };
-
-        let page  = memory.alloc_page()?;
+        let page = memory.alloc_page()?;
         let page_addr = page.base_addr();
-        let page_addr =
-            if mode == PageMode::UserFull || mode == PageMode::RuntimeFull {
-                self.map_priv_page(page_addr)?
-            } else {
-                page_addr
-            };
+        let page_addr = if mode == PageMode::UserFull || mode == PageMode::RuntimeFull {
+            self.map_priv_page(page_addr)?
+        } else {
+            page_addr
+        };
 
-        return Ok(Some(Page::wrap(page_addr)));
+        Ok(Some(Page::wrap(page_addr)))
     }
-
 }

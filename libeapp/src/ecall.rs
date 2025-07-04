@@ -16,15 +16,15 @@ use alloc::vec::Vec;
 #[cfg(not(feature = "heap_rt"))]
 use core::arch::global_asm;
 
+use edge::ecall::Header;
 use edge::ecall::{ECALL_MAX_CID, ECALL_MAX_USER_CID};
-use edge::ecall::{Header};
 
-pub use ::edge::ecall::CallID as CallID;
+pub use ::edge::ecall::CallID;
 
-use crate::Status;
+use crate::attestation::attest;
 use crate::ocall::CallID as OCallID;
 use crate::ocall::OCall;
-use crate::attestation::attest;
+use crate::Status;
 
 /// ECall structure for automatic management of request and response buffers
 ///
@@ -41,7 +41,6 @@ pub struct ECall<'a, 's1: 'a, 's2: 'a> {
 
 /// A listener for receiving user-defined ecalls
 pub trait Listener {
-
     /// Callback for handling user-defined ecalls
     ///
     /// # Input
@@ -57,7 +56,6 @@ pub trait Listener {
 }
 
 impl<'a, 's1: 'a, 's2: 'a> ECall<'a, 's1, 's2> {
-
     /// Size of ECall header in in bytes
     pub const HEADER_SIZE: usize = OCall::HEADER_SIZE + Header::SIZE;
 
@@ -65,11 +63,12 @@ impl<'a, 's1: 'a, 's2: 'a> ECall<'a, 's1, 's2> {
     ///
     /// Only for internal use of the ecall dispatcher!
 
-    fn prepare(cid: u32,
-               uid: u32,
-               req: &'a OCall<'s1>,
-               res: &'a mut OCall<'s2>) -> Result<Self, Status> {
-
+    fn prepare(
+        cid: u32,
+        uid: u32,
+        req: &'a OCall<'s1>,
+        res: &'a mut OCall<'s2>,
+    ) -> Result<Self, Status> {
         if req.response_length() < Header::SIZE {
             return Err(Status::ShortBuffer);
         }
@@ -80,7 +79,11 @@ impl<'a, 's1: 'a, 's2: 'a> ECall<'a, 's1, 's2> {
 
         // At least ECall header will be sent
         res.request_length(Header::SIZE);
-        Ok(ECall{req: req, res: res, hdr: Header::new(cid, uid, 0)})
+        Ok(ECall {
+            req,
+            res,
+            hdr: Header::new(cid, uid, 0),
+        })
     }
 
     /// Get call identifier
@@ -94,9 +97,9 @@ impl<'a, 's1: 'a, 's2: 'a> ECall<'a, 's1, 's2> {
     }
 
     /// Get request payload data as a byte slice
-    pub fn request<'b>(&'b self) -> &'b [u8] {
+    pub fn request(&self) -> &[u8] {
         let data = self.req.response();
-        &data[Header::SIZE ..]
+        &data[Header::SIZE..]
     }
 
     /// Get request payload length
@@ -105,9 +108,9 @@ impl<'a, 's1: 'a, 's2: 'a> ECall<'a, 's1, 's2> {
     }
 
     /// Get response payload buffer as a mutable byte slice
-    pub fn response<'b>(&'b mut self) -> &'b mut [u8] {
+    pub fn response(&mut self) -> &mut [u8] {
         let data = self.res.request();
-        &mut data[Header::SIZE .. ]
+        &mut data[Header::SIZE..]
     }
 
     /// Set response payload length
@@ -118,7 +121,7 @@ impl<'a, 's1: 'a, 's2: 'a> ECall<'a, 's1, 's2> {
     /// Execute call
     fn send(&mut self) -> Status {
         /* In case of an error, only send the header */
-        if self.hdr.sts != Status::as_u32(Status::Success) {
+        if self.hdr.sts != Status::Success.into() {
             self.res.request_length(Header::SIZE);
         }
 
@@ -129,11 +132,11 @@ impl<'a, 's1: 'a, 's2: 'a> ECall<'a, 's1, 's2> {
             return Status::ShortBuffer;
         }
 
-        req[ .. hdr.len()].copy_from_slice(hdr);
-        return match self.res.call(OCallID::ECallReturn as u64, true) {
-            Ok(_)       => Status::Success,
+        req[..hdr.len()].copy_from_slice(hdr);
+        match self.res.call(OCallID::ECallReturn as u64, true) {
+            Ok(_) => Status::Success,
             Err(status) => status,
-        };
+        }
     }
 }
 
@@ -144,9 +147,8 @@ struct Buffer {
 
 #[cfg(feature = "heap_rt")]
 impl Buffer {
-
     fn new() -> Self {
-        Self{data: Vec::new()}
+        Self { data: Vec::new() }
     }
 
     fn resize(&mut self, size: usize) -> bool {
@@ -158,11 +160,11 @@ impl Buffer {
 
         let more = total - self.data.len();
         match self.data.try_reserve_exact(more) {
-            Ok(_)  => {
+            Ok(_) => {
                 self.data.resize(total, 0);
                 true
             }
-            Err(_) => false
+            Err(_) => false,
         }
     }
 
@@ -179,10 +181,12 @@ struct Buffer {
 
 #[cfg(not(feature = "heap_rt"))]
 impl Buffer {
-
     fn new(data: &'static mut [u8]) -> Self {
         let size = data.len();
-        Self{data: data, size: size}
+        Self {
+            data: data,
+            size: size,
+        }
     }
 
     fn resize(&mut self, size: usize) -> bool {
@@ -196,7 +200,7 @@ impl Buffer {
     }
 
     fn as_mut_slice(&mut self) -> &mut [u8] {
-        &mut self.data[.. self.size]
+        &mut self.data[..self.size]
     }
 }
 
@@ -209,9 +213,10 @@ struct Dispatcher<'a> {
 }
 
 impl<'a> Dispatcher<'a> {
-
     fn new() -> Self {
-        Self{table: [None; ECALL_MAX_CID]}
+        Self {
+            table: [None; ECALL_MAX_CID],
+        }
     }
 
     fn get(&self, i: usize) -> Option<&'a dyn Listener> {
@@ -219,7 +224,7 @@ impl<'a> Dispatcher<'a> {
             return None;
         }
 
-        return self.table[i];
+        self.table[i]
     }
 
     fn set(&mut self, i: usize, cb: &'a dyn Listener) -> bool {
@@ -228,7 +233,7 @@ impl<'a> Dispatcher<'a> {
         }
 
         self.table[i] = Some(cb);
-        return true;
+        true
     }
 }
 
@@ -237,20 +242,27 @@ impl<'a> Dispatcher<'a> {
 /// The server can handle a single ecall at the time
 pub struct Server<'a> {
     /// Buffer for incoming ecalls
-    ibuf:       Buffer,
+    ibuf: Buffer,
     /// Buffer for outcoming eall
-    obuf:       Buffer,
+    obuf: Buffer,
     /// Dispatcher for routing calls to listeners
     dispatcher: Dispatcher<'a>,
 }
 
-impl<'a> Server<'a> {
+impl<'a> Default for Server<'a> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
+impl<'a> Server<'a> {
     /// Create a new ecall server
     pub fn new() -> Self {
-        Self{ibuf: Server::input_buffer(),
-             obuf: Server::output_buffer(),
-             dispatcher: Dispatcher::new()}
+        Self {
+            ibuf: Server::input_buffer(),
+            obuf: Server::output_buffer(),
+            dispatcher: Dispatcher::new(),
+        }
     }
 
     /// Set maximum reqeust size and reserve memory for input data
@@ -302,7 +314,7 @@ impl<'a> Server<'a> {
 
     /* Emulate or serve single ecall */
     fn wait_internal(&mut self) -> Status {
-        let inbuf  = self.ibuf.as_mut_slice();
+        let inbuf = self.ibuf.as_mut_slice();
         let outbuf = self.obuf.as_mut_slice();
 
         if inbuf.len() < ECall::HEADER_SIZE {
@@ -314,7 +326,7 @@ impl<'a> Server<'a> {
         }
 
         let mut poll_ctx = match OCall::prepare(inbuf) {
-            Ok(ctx)     => ctx,
+            Ok(ctx) => ctx,
             Err(status) => {
                 return status;
             }
@@ -323,7 +335,7 @@ impl<'a> Server<'a> {
         poll_ctx.request_length(0);
 
         let status = match poll_ctx.call(OCallID::ECallPoll as u64, true) {
-            Ok(status)  => status,
+            Ok(status) => status,
             Err(status) => {
                 return status;
             }
@@ -332,7 +344,7 @@ impl<'a> Server<'a> {
         let req_buf = poll_ctx.response();
         let req_len = poll_ctx.response_length();
 
-        if  req_len > req_buf.len() || req_len < Header::SIZE {
+        if req_len > req_buf.len() || req_len < Header::SIZE {
             return Status::ShortBuffer;
         }
 
@@ -340,14 +352,16 @@ impl<'a> Server<'a> {
             return Status::ShortBuffer;
         }
 
-        let hdr = match Header::from_bytes(&req_buf[0 .. Header::SIZE]) {
+        let hdr = match Header::from_bytes(&req_buf[0..Header::SIZE]) {
             Ok(hdr) => hdr,
-            Err(_) => { return Status::ShortBuffer; },
+            Err(_) => {
+                return Status::ShortBuffer;
+            }
         };
 
         let cid = hdr.cid;
         let uid = hdr.uid;
-//        let sts = hdr.sts;
+        //        let sts = hdr.sts;
 
         /* Done, No pending calls, etc. */
         if cid == CallID::as_u32(CallID::CallStatus) {
@@ -361,7 +375,7 @@ impl<'a> Server<'a> {
 
         /* OCall for ECall's return call */
         let mut rtrn_ctx = match OCall::prepare(outbuf) {
-            Ok(ctx)     => ctx,
+            Ok(ctx) => ctx,
             Err(status) => {
                 return status;
             }
@@ -369,24 +383,23 @@ impl<'a> Server<'a> {
 
         /* ECall context */
         let mut ctx = match ECall::prepare(cid, uid, &poll_ctx, &mut rtrn_ctx) {
-            Ok(ctx)     => ctx,
+            Ok(ctx) => ctx,
             Err(status) => {
                 return status;
             }
         };
 
-        let req = &(ctx.req.response())[Header::SIZE ..];
-        let status = dispatch_internal(cid, &mut ctx, &req);
-        let status =
-            if status == Status::BadCallID {
-                if let Some(callback) = self.dispatcher.get(cid as usize) {
-                    callback.on_ecall(&mut ctx, &req)
-                } else {
-                    Status::BadCallID
-                }
+        let req = &(ctx.req.response())[Header::SIZE..];
+        let status = dispatch_internal(cid, &mut ctx, req);
+        let status = if status == Status::BadCallID {
+            if let Some(callback) = self.dispatcher.get(cid as usize) {
+                callback.on_ecall(&mut ctx, req)
             } else {
-                status
-            };
+                Status::BadCallID
+            }
+        } else {
+            status
+        };
 
         if status != Status::Done {
             ctx.status(status);
@@ -396,7 +409,7 @@ impl<'a> Server<'a> {
         /* The ecall callback asked to return from the ecall-handler's serve call */
         ctx.status(Status::Success);
         let retval = ctx.send();
-        return if retval == Status::Success {
+        if retval == Status::Success {
             Status::Done
         } else {
             retval
@@ -405,8 +418,8 @@ impl<'a> Server<'a> {
 
     /// Serve next waiting ecall if any are pending
     pub fn wait(&mut self) -> Status {
-        let status = self.wait_internal();
-        return status;
+        
+        self.wait_internal()
     }
 
     /// Serve ecalls in a loop
@@ -421,14 +434,14 @@ impl<'a> Server<'a> {
             status = self.wait();
         }
 
-        return status;
+        status
     }
 }
 
 // Dispatch internally handled ecalls
 fn dispatch_internal(cid: u32, ctx: &mut ECall, req: &[u8]) -> Status {
     if cid == CallID::as_u32(CallID::Attestation) {
-        let nonce  = req;
+        let nonce = req;
         let report = ctx.response();
         match attest(nonce, report) {
             Ok(length) => {
@@ -436,10 +449,8 @@ fn dispatch_internal(cid: u32, ctx: &mut ECall, req: &[u8]) -> Status {
                     return Status::ShortBuffer;
                 }
                 return Status::Success;
-            },
-            Err(status) => {
-                return status
             }
+            Err(status) => return status,
         }
     }
 
@@ -449,11 +460,10 @@ fn dispatch_internal(cid: u32, ctx: &mut ECall, req: &[u8]) -> Status {
 /* Define static ecall input and output buffers (link-time) */
 
 #[cfg(not(feature = "heap_rt"))]
-global_asm!{include_str!("internal/ecall_zone.S")}
+global_asm! {include_str!("internal/ecall_zone.S")}
 
 #[cfg(not(feature = "heap_rt"))]
 impl<'a> Server<'a> {
-
     fn input_buffer() -> Buffer {
         extern "C" {
             static mut __ecall_inbuf_start: u8;
@@ -465,9 +475,7 @@ impl<'a> Server<'a> {
                 - (&__ecall_inbuf_start as *const u8) as usize
         };
 
-        let buffer = unsafe {
-            core::slice::from_raw_parts_mut(&mut __ecall_inbuf_start, size)
-        };
+        let buffer = unsafe { core::slice::from_raw_parts_mut(&mut __ecall_inbuf_start, size) };
 
         Buffer::new(buffer)
     }
@@ -483,9 +491,7 @@ impl<'a> Server<'a> {
                 - (&__ecall_outbuf_start as *const u8) as usize
         };
 
-        let buffer = unsafe {
-            core::slice::from_raw_parts_mut(&mut __ecall_outbuf_start, size)
-        };
+        let buffer = unsafe { core::slice::from_raw_parts_mut(&mut __ecall_outbuf_start, size) };
         Buffer::new(buffer)
     }
 }
@@ -493,7 +499,6 @@ impl<'a> Server<'a> {
 // If we have heap, the buffers are allocated dynamically
 #[cfg(feature = "heap_rt")]
 impl<'a> Server<'a> {
-
     fn input_buffer() -> Buffer {
         Buffer::new()
     }

@@ -5,11 +5,11 @@
 
 #[macro_use]
 extern crate quote;
-extern crate syn;
 extern crate proc_macro;
+extern crate syn;
 
-use syn::{parse_macro_input, Error, ItemFn, ReturnType, Type, Visibility};
 use syn::spanned::Spanned;
+use syn::{parse_macro_input, Error, ItemFn, ReturnType, Type, Visibility};
 
 use proc_macro::TokenStream;
 
@@ -33,15 +33,12 @@ use proc_macro::TokenStream;
 
 #[proc_macro_attribute]
 pub fn eapp_entry(_args: TokenStream, input: TokenStream) -> TokenStream {
-
     // See: https://docs.rs/syn/latest/syn
-    let func : syn::ItemFn = parse_macro_input!(input as ItemFn);
+    let func: syn::ItemFn = parse_macro_input!(input as ItemFn);
 
     // Only non-doc attributes are allowed currently:
     for attr in &func.attrs {
-        if attr.path.leading_colon == None
-            || attr.path.segments.len() == 1
-        {
+        if attr.path.leading_colon.is_none() || attr.path.segments.len() == 1 {
             if let Some(path) = attr.path.segments.first() {
                 if path.ident == "doc" {
                     continue;
@@ -49,45 +46,51 @@ pub fn eapp_entry(_args: TokenStream, input: TokenStream) -> TokenStream {
             }
         }
 
-        return Error::new(func.sig.span(),
-                          "`#[eapp_entry]` function must have signature \
-                           `pub fn() -> u64` and no other attributes")
-             .to_compile_error().into();
+        return Error::new(
+            func.sig.span(),
+            "`#[eapp_entry]` function must have signature \
+                           `pub fn() -> u64` and no other attributes",
+        )
+        .to_compile_error()
+        .into();
     }
 
     // Signature check: pub fn () -> u64;
     if match func.vis {
         Visibility::Public(_) => false,
-        _ => true
-    }
-    || func.sig.abi.is_some()
+        _ => true,
+    } || func.sig.abi.is_some()
         || func.sig.asyncness.is_some()
         || func.sig.constness.is_some()
         || func.sig.unsafety.is_some()
         || func.sig.variadic.is_some()
-        || func.sig.generics.params.len() > 0
-        || func.sig.inputs.len() > 0
+        || !func.sig.generics.params.is_empty()
+        || !func.sig.inputs.is_empty()
         || match func.sig.output {
             ReturnType::Default => true,
             ReturnType::Type(_, ref t) => match **t {
                 Type::Path(ref tp) => {
                     !(tp.path.segments.len() == 1
-                      && tp.path.segments.first().unwrap().ident.to_string() == "u64")
-                },
-                _ => true
-            }
-        } {
-            return Error::new(func.sig.span(),
-                              "`#[eapp_entry]` function must have signature `pub fn() -> u64`")
-                .to_compile_error().into();
+                        && tp.path.segments.first().unwrap().ident == "u64")
+                }
+                _ => true,
+            },
         }
+    {
+        return Error::new(
+            func.sig.span(),
+            "`#[eapp_entry]` function must have signature `pub fn() -> u64`",
+        )
+        .to_compile_error()
+        .into();
+    }
 
     // Re-name the function and enforce (checked) signature:
     let attrs = func.attrs; // Add comments back to preserve documentation
     let ident = func.sig.ident;
     let stmts = func.block.stmts;
 
-    let expanded = quote!{
+    let expanded = quote! {
         #(#attrs)*
         #[export_name = "_eapp_entry"]
         pub fn #ident() -> u64 {

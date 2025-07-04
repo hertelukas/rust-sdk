@@ -5,8 +5,8 @@
 
 extern crate core;
 
-use crate::Status;
 use crate::internal::syscall;
+use crate::Status;
 
 /// Retrieve enclave instance specific sealing key from the security monitor
 ///
@@ -20,11 +20,10 @@ use crate::internal::syscall;
 ///
 /// Ok(size) if the call succeeded, Err(Status) otherwise
 
-
 pub fn get_sealing_key(ident: &[u8], to: &mut [u8]) -> Result<usize, Status> {
     if 0 != syscall::sealing_key(to, ident) {
         return Err(Status::Error);
     }
 
-    return Ok(0 as usize);
+    Ok(0_usize)
 }

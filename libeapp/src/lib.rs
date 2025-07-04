@@ -13,7 +13,7 @@ mod internal;
 
 use core::panic::PanicInfo;
 
-use crate::internal::{eapp_abort};
+use crate::internal::eapp_abort;
 use crate::internal::syscall;
 
 /* Public interface */
@@ -21,10 +21,10 @@ pub mod attestation;
 pub mod ecall;
 pub mod ocall;
 pub mod sealing;
-pub use eapp_macros::{eapp_entry};
+pub use eapp_macros::eapp_entry;
 
-pub use ::edge::Status as Status;
-pub use ::edge::Error  as Error;
+pub use ::edge::Error;
+pub use ::edge::Status;
 
 /// Return from the enclave application and terminate the enclave.
 ///
@@ -37,7 +37,7 @@ pub use ::edge::Error  as Error;
 ///
 /// This function never returns
 
-pub fn eapp_return(value : u64) -> ! {
+pub fn eapp_return(value: u64) -> ! {
     syscall::exit(value);
 }
 
@@ -60,8 +60,7 @@ extern "C" fn _start() -> ! {
 }
 
 /* Panic handler: aborts the enclave */
-#[no_mangle]
 #[panic_handler]
 fn on_panic(_info: &PanicInfo) -> ! {
-   eapp_abort(Error::Panic);
+    eapp_abort(Error::Panic);
 }

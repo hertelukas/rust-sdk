@@ -22,6 +22,6 @@ pub mod ecall;
 pub mod enclave;
 pub mod ocall;
 
-pub use enclave::Enclave as Enclave;
-pub use ::edge::Status   as Status;
-pub use ::edge::Error    as Error;
+pub use ::edge::Error;
+pub use ::edge::Status;
+pub use enclave::Enclave;

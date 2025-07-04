@@ -3,34 +3,33 @@
 // SPDX-License-Identifier: MIT
 // Copyright (C) 2022 VTT Technical Research Centre of Finland Ltd
 
-use std::sync::mpsc::{Receiver,  Sender};
+use std::sync::mpsc::{Receiver, Sender};
 
-use crate::{Error, Status};
 use crate::attestation::Evidence;
 use crate::builder::Builder;
 use crate::device::{Device, KEYSTONE_NULL_DEVICE};
 use crate::ecall::{CallID, Request, Response};
-use crate::edge::{EdgeCall};
+use crate::edge::EdgeCall;
+use crate::internal::dispatcher::Dispatcher;
 use crate::memory::uintptr;
-use crate::ocall::{Listener};
-use crate::internal::dispatcher::{Dispatcher};
+use crate::ocall::Listener;
+use crate::{Error, Status};
 
 /// An enclave instance
 pub struct Enclave<'a> {
     /// Keystone pseudo-device
-    device:     Option<Device>,
+    device: Option<Device>,
     /// Call dispatcher
     dispatcher: Dispatcher<'a>,
     /// Base address of the untrusted shared memory
-    shrd_base:  uintptr,
+    shrd_base: uintptr,
     /// Size of the untrusted shared memory in bytes
-    shrd_size:  uintptr,
+    shrd_size: uintptr,
     /// Hash of the enclave calculated by the builder (not secure)
-    hash:       Vec<u8>,
+    hash: Vec<u8>,
 }
 
-impl <'a>Enclave<'a> {
-
+impl<'a> Enclave<'a> {
     /// Create a new enclave.
     ///
     /// The created enclave is uninitialized. It must initialized with an
@@ -49,19 +48,19 @@ impl <'a>Enclave<'a> {
     ///
 
     pub fn new(device_path: &str) -> Result<Self, Error> {
+        let device = if device_path == KEYSTONE_NULL_DEVICE {
+            None
+        } else {
+            Some(Device::new(device_path)?)
+        };
 
-        let device =
-            if device_path == KEYSTONE_NULL_DEVICE {
-                None
-            }  else {
-                Some(Device::new(device_path)?)
-            };
-
-        Ok(Self{device:     device,
-                dispatcher: Dispatcher::new(),
-                shrd_base:  0,
-                shrd_size:  0,
-                hash:       Vec::new()})
+        Ok(Self {
+            device,
+            dispatcher: Dispatcher::new(),
+            shrd_base: 0,
+            shrd_size: 0,
+            hash: Vec::new(),
+        })
     }
 
     /// Initialize an enclave.
@@ -82,16 +81,15 @@ impl <'a>Enclave<'a> {
     ///
 
     pub fn build(&mut self, builder: &Builder) -> Result<(), Error> {
-        let device     =
-            if self.device.is_some() {
-                self.device.as_ref()
-            } else {
-                None
-            };
-        let output     = builder.build(device)?;
+        let device = if self.device.is_some() {
+            self.device.as_ref()
+        } else {
+            None
+        };
+        let output = builder.build(device)?;
         self.shrd_base = output.shrd_base;
         self.shrd_size = output.shrd_size;
-        self.hash      = output.hash;
+        self.hash = output.hash;
         Ok(())
     }
 
@@ -108,7 +106,7 @@ impl <'a>Enclave<'a> {
     ///
 
     pub fn handle(&mut self) -> Result<Handle, Error> {
-        return self.dispatcher.handle();
+        self.dispatcher.handle()
     }
 
     /// Register new ocall listener.
@@ -129,11 +127,7 @@ impl <'a>Enclave<'a> {
     /// an Error code otherwise.
     ///
 
-    pub fn register_ocall(&mut self,
-                          cid: u32,
-                          cb: &'a dyn Listener)
-                          -> Result<(), Error> {
-
+    pub fn register_ocall(&mut self, cid: u32, cb: &'a dyn Listener) -> Result<(), Error> {
         self.dispatcher.register_ocall(cid, cb)
     }
 
@@ -156,11 +150,10 @@ impl <'a>Enclave<'a> {
         // Release all threads waiting in ecalls.
         // Ecalls will return with Status::Done without completing the call.
         self.dispatcher.release_all();
-        return rv;
+        rv
     }
 
     fn run_internal(&self) -> Result<u64, Error> {
-
         if self.device.is_none() {
             return Err(Error::BadState);
         }
@@ -168,54 +161,57 @@ impl <'a>Enclave<'a> {
         let device = self.device.as_ref().unwrap();
 
         match device.run_enclave() {
-            Ok(addr)   => return Ok(addr as u64),
+            Ok(addr) => return Ok(addr as u64),
             Err(error) => match error {
                 Error::Pending => {
                     // Dispatch edge calls
-                    let mut edge_call = unsafe {
-                        &mut* std::ptr::with_exposed_provenance_mut::<EdgeCall>(self.shrd_base)
+                    let edge_call = unsafe {
+                        &mut *std::ptr::with_exposed_provenance_mut::<EdgeCall>(self.shrd_base)
                     };
 
-                    self.dispatcher.dispatch_ocall(&mut edge_call,
-                                                   self.shrd_base,
-                                                   self.shrd_size)?;
-                },
+                    self.dispatcher.dispatch_ocall(
+                        edge_call,
+                        self.shrd_base,
+                        self.shrd_size,
+                    )?;
+                }
                 Error::Interrupted => {
                     // Nothing to do for now
-                },
+                }
                 _ => {
                     // A real error
-                    return Err(error)
-                },
-            }
+                    return Err(error);
+                }
+            },
         }
 
         loop {
-            match  device.resume_enclave() {
-                Ok(addr)   => return Ok(addr as u64),
+            match device.resume_enclave() {
+                Ok(addr) => return Ok(addr as u64),
                 Err(error) => match error {
                     Error::Pending => {
                         // Dispatch edge calls
-                        let mut edge_call = unsafe {
-                            &mut* std::ptr::with_exposed_provenance_mut::<EdgeCall>(self.shrd_base)
+                        let edge_call = unsafe {
+                            &mut *std::ptr::with_exposed_provenance_mut::<EdgeCall>(self.shrd_base)
                         };
 
-                        self.dispatcher.dispatch_ocall(&mut edge_call,
-                                                       self.shrd_base,
-                                                       self.shrd_size)?;
-                    },
+                        self.dispatcher.dispatch_ocall(
+                            edge_call,
+                            self.shrd_base,
+                            self.shrd_size,
+                        )?;
+                    }
                     Error::Interrupted => {
                         // Nothing to do for now
-                    },
+                    }
                     _ => {
                         // A real error
-                        return Err(error)
-                    },
-                }
+                        return Err(error);
+                    }
+                },
             }
         }
     }
-
 
     /// Return hash value of enclave's presentation.
     ///
@@ -237,13 +233,12 @@ impl <'a>Enclave<'a> {
     /// error value in case the operation failed.
 
     pub fn hash(&self, to: &mut [u8]) -> Result<usize, Error> {
-
         if self.hash.len() > to.len() {
             return Err(Error::BadArgument);
         }
 
-        to[0 .. self.hash.len()].clone_from_slice(&self.hash[..]);
-        return Ok(self.hash.len());
+        to[0..self.hash.len()].clone_from_slice(&self.hash[..]);
+        Ok(self.hash.len())
     }
 }
 
@@ -259,9 +254,8 @@ pub struct Handle {
 }
 
 impl Handle {
-
-    pub(crate) fn new(tx: Sender<Request>, rx: Receiver<Response>)-> Self {
-        Handle{tx: tx, rx: rx}
+    pub(crate) fn new(tx: Sender<Request>, rx: Receiver<Response>) -> Self {
+        Handle { tx, rx }
     }
 
     /// Make a ecall to the enclave using the handle.
@@ -285,22 +279,20 @@ impl Handle {
     /// is returned.
     ///
 
-    pub fn ecall(&self,
-                 cid: u32,
-                 params: Option<Box<[u8]>>)
-                 -> Result<(Status, Option<Box<[u8]>>), Status> {
-
+    pub fn ecall(
+        &self,
+        cid: u32,
+        params: Option<Box<[u8]>>,
+    ) -> Result<(Status, Option<Box<[u8]>>), Status> {
         let req = Request::new(cid, params);
-        if let Err(_) =  self.tx.send(req) {
+        if self.tx.send(req).is_err() {
             // Receiving end has been disconnected
             return Err(Status::Done);
         }
 
         /* Blocks */
         let mut res = match self.rx.recv() {
-            Ok(res) => {
-                res
-            },
+            Ok(res) => res,
             Err(_) => {
                 // Sending end has been disconnected
                 return Err(Status::Done);
@@ -317,7 +309,7 @@ impl Handle {
             return Err(Status::InternalError);
         }
 
-        return Ok((res.status(), res.data()));
+        Ok((res.status(), res.data()))
     }
 
     /// Cause enclave's ecall handler to receive an interrupt.
@@ -328,14 +320,10 @@ impl Handle {
     /// dependent.
     ///
 
-
     pub fn stop(&self) {
         let req = Request::new(CallID::StopHandler as u32, None);
         // May fail if the other end has been disconnected
-        match self.tx.send(req) {
-            Ok(_)  => return,
-            Err(_) => return,
-        }
+        if self.tx.send(req).is_ok() {  }
     }
 
     /// Challenge the enclave for attestation.
@@ -360,16 +348,12 @@ impl Handle {
         let res = self.ecall(CallID::as_u32(CallID::Attestation), Some(boxed))?;
         let status = res.0;
         match status {
-            Status::Success => {
-                match res.1 {
-                    Some(buffer) => {
-                        match Evidence::from_bytes(&buffer) {
-                            Ok(evidence) => Ok(evidence),
-                            _ => Err(status)
-                        }
-                    },
-                    None => Err(status),
-                }
+            Status::Success => match res.1 {
+                Some(buffer) => match Evidence::from_bytes(&buffer) {
+                    Ok(evidence) => Ok(evidence),
+                    _ => Err(status),
+                },
+                None => Err(status),
             },
             _ => Err(status),
         }

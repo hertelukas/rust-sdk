@@ -8,7 +8,7 @@ use crate::Status;
 /// Maximum number of OCall identifiers supported. Identifiers start from 0,
 /// thus identifier 'MAX_OCALL' is not valid.
 /* NOTE: In Keystone SDK, currently MAX_EDGE_CALL is 10. */
-pub const MAX_OCALL: usize  = 10;
+pub const MAX_OCALL: usize = 10;
 
 /// This feature is not supported yet!
 pub const EDGE_SYSCALL: u32 = MAX_OCALL as u32 + 1;
@@ -20,16 +20,16 @@ pub const MAX_USER_EDGE_CALL: usize = CallID::LastUserID as usize;
 #[allow(dead_code)] /* Suppress warnings about unused variants */
 pub enum CallID {
     /// Highest allowed user-defined identifier
-    LastUserID    = (MAX_OCALL - 4) as isize, /* Not in use */
+    LastUserID = (MAX_OCALL - 4) as isize, /* Not in use */
     /// ECall (emulation) poll request
-    ECallPoll     = (MAX_OCALL - 3) as isize,
+    ECallPoll = (MAX_OCALL - 3) as isize,
     /// ECall (emulation) return request
-    ECallReturn   = (MAX_OCALL - 2) as isize,
+    ECallReturn = (MAX_OCALL - 2) as isize,
     /// Internal enclave memory debugging message
-    DbgMemory     = (MAX_OCALL - 1) as isize,
+    DbgMemory = (MAX_OCALL - 1) as isize,
     /// One past the highest valid identifier.
     MaxReservedID = (MAX_OCALL) as isize, /* Not in use */
-    Unknown       = (MAX_OCALL + 1) as isize,
+    Unknown = (MAX_OCALL + 1) as isize,
 }
 
 /// OCall request header
@@ -43,21 +43,22 @@ pub struct RequestHeader {
 }
 
 impl RequestHeader {
-
     /// Size of the request header in bytes
     pub const SIZE: usize = core::mem::size_of::<RequestHeader>();
 
     /// Create a new request header
     pub fn new(max: usize) -> Self {
-        Self{max: max}
+        Self { max }
     }
 
     /// Serialize request header to raw byte format
     pub fn as_bytes(&self) -> &[u8] {
         // TODO: ugly!
         unsafe {
-            core::slice::from_raw_parts((self as *const Self) as *const u8,
-                                        core::mem::size_of::<Self>())
+            core::slice::from_raw_parts(
+                (self as *const Self) as *const u8,
+                core::mem::size_of::<Self>(),
+            )
         }
     }
 
@@ -65,7 +66,7 @@ impl RequestHeader {
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, ()> {
         if bytes.len() == core::mem::size_of::<Self>() {
             // TODO: ugly!
-            Ok(unsafe {*(bytes.as_ptr() as *const Self) })
+            Ok(unsafe { *(bytes.as_ptr() as *const Self) })
         } else {
             Err(())
         }
@@ -81,30 +82,34 @@ pub struct ResponseHeader {
     /// Return status
     pub status: u32,
     /// Size of returned data in bytes
-    pub size:   usize,
+    pub size: usize,
 }
 
 impl ResponseHeader {
-
     /// Size of the response header in bytes
     pub const SIZE: usize = core::mem::size_of::<ResponseHeader>();
 
     /// Create a new response header
     pub fn new(status: Status, size: usize) -> Self {
-        Self{status: Status::as_u32(status), size: size}
+        Self {
+            status: status as u32,
+            size,
+        }
     }
 
     /// Create an empty response header
     pub fn empty() -> Self {
-        Self{status: 0, size: 0}
+        Self { status: 0, size: 0 }
     }
 
     /// Serialize response header to raw byte format
     pub fn as_bytes(&self) -> &[u8] {
         // TODO: ugly!
         unsafe {
-            core::slice::from_raw_parts((self as *const Self) as *const u8,
-                                        core::mem::size_of::<Self>())
+            core::slice::from_raw_parts(
+                (self as *const Self) as *const u8,
+                core::mem::size_of::<Self>(),
+            )
         }
     }
 
@@ -112,7 +117,7 @@ impl ResponseHeader {
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, ()> {
         if bytes.len() == core::mem::size_of::<Self>() {
             // TODO: ugly!
-            Ok(unsafe {*(bytes.as_ptr() as *const Self) })
+            Ok(unsafe { *(bytes.as_ptr() as *const Self) })
         } else {
             Err(())
         }

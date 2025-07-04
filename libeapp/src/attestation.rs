@@ -5,11 +5,11 @@
 
 extern crate core;
 
-use crate::Status;
 use crate::internal::syscall;
+use crate::Status;
 
-pub use edge::attestation::{NONCE_MAX_LENGTH};
-pub use edge::attestation::{REPORT_MAX_LENGTH};
+pub use edge::attestation::NONCE_MAX_LENGTH;
+pub use edge::attestation::REPORT_MAX_LENGTH;
 
 /* Raw Keystone attestation report:
  *
@@ -34,9 +34,9 @@ const PKEY_SIZE: usize = 32; // ed25519
 const SIGN_SIZE: usize = 64; // ed25519
 const DLEN_SIZE: usize = core::mem::size_of::<u64>();
 
-const ENC_HASH_OFFSET:        usize = 0;
+const ENC_HASH_OFFSET: usize = 0;
 const ENC_DATA_LENGTH_OFFSET: usize = ENC_HASH_OFFSET + HASH_SIZE;
-const ENC_DATA_OFFSET:        usize = ENC_DATA_LENGTH_OFFSET + DLEN_SIZE;
+const ENC_DATA_OFFSET: usize = ENC_DATA_LENGTH_OFFSET + DLEN_SIZE;
 
 #[allow(dead_code)]
 const SM_HASH_OFFSET: usize = 0;
@@ -45,16 +45,16 @@ const SM_PKEY_OFFSET: usize = SM_HASH_OFFSET + HASH_SIZE;
 #[allow(dead_code)]
 const SM_SIGN_OFFSET: usize = SM_PKEY_OFFSET + PKEY_SIZE;
 
-const RAW_DATA_MAX_LEN:      usize = NONCE_MAX_LENGTH;
+const RAW_DATA_MAX_LEN: usize = NONCE_MAX_LENGTH;
 const RAW_ENC_REPORT_OFFSET: usize = 0;
-const RAW_ENC_REPORT_SIZE:   usize = HASH_SIZE + DLEN_SIZE + RAW_DATA_MAX_LEN + SIGN_SIZE;
-const RAW_SM_REPORT_OFFSET:  usize = RAW_ENC_REPORT_OFFSET + RAW_ENC_REPORT_SIZE;
+const RAW_ENC_REPORT_SIZE: usize = HASH_SIZE + DLEN_SIZE + RAW_DATA_MAX_LEN + SIGN_SIZE;
+const RAW_SM_REPORT_OFFSET: usize = RAW_ENC_REPORT_OFFSET + RAW_ENC_REPORT_SIZE;
 #[allow(dead_code)]
-const RAW_SM_REPORT_SIZE:    usize = HASH_SIZE + PKEY_SIZE + SIGN_SIZE;
+const RAW_SM_REPORT_SIZE: usize = HASH_SIZE + PKEY_SIZE + SIGN_SIZE;
 #[allow(dead_code)]
-const RAW_DEV_PKEY_OFFSET:   usize = RAW_SM_REPORT_OFFSET + RAW_SM_REPORT_SIZE;
-const RAW_DEV_PKEY_SIZE:     usize = PKEY_SIZE;
-const RAW_REPORT_SIZE:       usize = RAW_ENC_REPORT_SIZE + RAW_SM_REPORT_SIZE + RAW_DEV_PKEY_SIZE;
+const RAW_DEV_PKEY_OFFSET: usize = RAW_SM_REPORT_OFFSET + RAW_SM_REPORT_SIZE;
+const RAW_DEV_PKEY_SIZE: usize = PKEY_SIZE;
+const RAW_REPORT_SIZE: usize = RAW_ENC_REPORT_SIZE + RAW_SM_REPORT_SIZE + RAW_DEV_PKEY_SIZE;
 
 fn read_le_u64(slice: &[u8]) -> u64 {
     let (bytes, _) = slice.split_at(core::mem::size_of::<u64>());
@@ -78,7 +78,6 @@ fn read_le_u64(slice: &[u8]) -> u64 {
 ///
 
 fn compress(report: &mut [u8]) -> Result<usize, Status> {
-
     /* Assure that the buffer is at least the minimum report size, i.e., size of
      * a valid report with RAW_DATA_MAX_LEN nonce. If so, the buffer should be
      * big enough for the final data since we are compressing the report.
@@ -90,25 +89,22 @@ fn compress(report: &mut [u8]) -> Result<usize, Status> {
     }
 
     let offset = RAW_ENC_REPORT_OFFSET;
-    let data_length = read_le_u64(&report[offset + ENC_DATA_LENGTH_OFFSET
-                                          ..
-                                          offset + ENC_DATA_OFFSET]) as usize;
+    let data_length =
+        read_le_u64(&report[offset + ENC_DATA_LENGTH_OFFSET..offset + ENC_DATA_OFFSET]) as usize;
 
-    if data_length> RAW_DATA_MAX_LEN {
+    if data_length > RAW_DATA_MAX_LEN {
         return Err(Status::BadPointer);
     }
 
-    let length       = SIGN_SIZE + RAW_SM_REPORT_SIZE + PKEY_SIZE;
-    let to_offset    = offset + ENC_DATA_OFFSET + data_length;
-    let from_offset  = offset + ENC_DATA_OFFSET + RAW_DATA_MAX_LEN;
-    let total        = to_offset + length;
+    let length = SIGN_SIZE + RAW_SM_REPORT_SIZE + PKEY_SIZE;
+    let to_offset = offset + ENC_DATA_OFFSET + data_length;
+    let from_offset = offset + ENC_DATA_OFFSET + RAW_DATA_MAX_LEN;
+    let total = to_offset + length;
 
+    report.copy_within(from_offset..from_offset + length, to_offset);
 
-    report.copy_within(from_offset .. from_offset + length, to_offset);
-
-    return Ok(total);
+    Ok(total)
 }
-
 
 /// Retrive a raw attestation report from the Keystone Security Monitor. The
 /// report may include a caller-specified 'nonce'.
@@ -133,9 +129,7 @@ fn compress(report: &mut [u8]) -> Result<usize, Status> {
 /// value constains a 'Status' code indicating the reason of failure.
 ///
 
-
 pub fn attest(nonce: &[u8], report: &mut [u8]) -> Result<usize, Status> {
-
     if report.len() < REPORT_MAX_LENGTH {
         return Err(Status::ShortBuffer);
     }
@@ -148,5 +142,5 @@ pub fn attest(nonce: &[u8], report: &mut [u8]) -> Result<usize, Status> {
         return Err(Status::Error);
     }
 
-    return compress(report);
+    compress(report)
 }

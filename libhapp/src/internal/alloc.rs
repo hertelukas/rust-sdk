@@ -7,19 +7,21 @@
  * at this point.
  */
 
-use edge::alloc::{MemOp};
+use edge::alloc::MemOp;
 
+use crate::ocall::OCall;
 use crate::Status;
-use crate::ocall::{OCall};
 
 pub(crate) fn on_debug_memory(ctx: &mut OCall) -> Status {
     if let Ok(op) = MemOp::from_bytes(ctx.request()) {
         let label = if op.func == 0 { "alloc" } else { "free" };
-        let addr  = op.addr;
-        let size  = op.size;
+        let addr = op.addr;
+        let size = op.size;
         let align = op.align;
-        println!("DbgMem: {} called on address {:#x} ({} {})",
-                 label, addr, size, align);
+        println!(
+            "DbgMem: {} called on address {:#x} ({} {})",
+            label, addr, size, align
+        );
 
         Status::Success
     } else {

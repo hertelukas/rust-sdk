@@ -15,9 +15,10 @@ use core::arch::asm;
 
 #[allow(dead_code)]
 #[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
-pub(crate) fn rdtime() -> u32
-{
+pub(crate) fn rdtime() -> u32 {
     let mut x: u32;
-    unsafe { asm!("rdtime {x}", x = out(reg) x); }
-    return x;
+    unsafe {
+        asm!("rdtime {x}", x = out(reg) x);
+    }
+    x
 }

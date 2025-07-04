@@ -7,11 +7,14 @@ extern crate core;
 
 use crate::Error;
 
-pub(crate) mod utils;
 pub(crate) mod syscall;
+pub(crate) mod utils;
 
 // Select between the normal and the debug memory allocator
-#[cfg_attr(all(feature = "heap", feature = "debug_memory"), path = "alloc-debug.rs")]
+#[cfg_attr(
+    all(feature = "heap", feature = "debug_memory"),
+    path = "alloc-debug.rs"
+)]
 #[cfg(feature = "heap")]
 pub(crate) mod alloc;
 

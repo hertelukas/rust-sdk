@@ -7,23 +7,23 @@
 #[cfg(not(feature = "heap"))]
 compile_error!("'alloc.rs' depends on feature `heap`");
 
-extern crate core;
 extern crate alloc;
 extern crate buddy_system_allocator;
+extern crate core;
 
 use alloc::alloc::Layout;
 use buddy_system_allocator::LockedHeap;
 use core::arch::global_asm;
 
+use crate::internal::eapp_abort;
 use crate::Error;
-use crate::internal::{eapp_abort};
 
 /// Buddy system allocator's order (for linked list)
 const ORDER: usize = 32;
 
 /* Heap related symbols */
 
-global_asm!{include_str!("malloc_zone.S")}
+global_asm! {include_str!("malloc_zone.S")}
 
 /* Symbols for heap start and end positions */
 
@@ -44,7 +44,7 @@ static ALLOCATOR: LockedHeap<ORDER> = LockedHeap::empty();
 pub(crate) fn init() {
     unsafe {
         let heap_start = &__malloc_start as *const u8 as usize;
-        let heap_end   = &__malloc_zone_stop as *const u8 as usize;
+        let heap_end = &__malloc_zone_stop as *const u8 as usize;
         ALLOCATOR.lock().add_to_heap(heap_start, heap_end);
     }
 }

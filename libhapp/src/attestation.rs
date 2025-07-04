@@ -8,8 +8,8 @@ use std::fmt;
 pub use crate::internal::ed25519::PublicKey;
 pub use crate::internal::ed25519::Signature;
 
-pub use edge::attestation::{NONCE_MAX_LENGTH};
-pub use edge::attestation::{REPORT_MAX_LENGTH};
+pub use edge::attestation::NONCE_MAX_LENGTH;
+pub use edge::attestation::REPORT_MAX_LENGTH;
 
 /* Raw Keystone attestation report:
  *
@@ -32,20 +32,20 @@ const PKEY_SIZE: usize = PublicKey::LENGTH;
 const SIGN_SIZE: usize = Signature::LENGTH;
 const DLEN_SIZE: usize = std::mem::size_of::<u64>();
 
-const ENC_OFFSET:             usize = 0;
-const ENC_HASH_OFFSET:        usize = 0;
+const ENC_OFFSET: usize = 0;
+const ENC_HASH_OFFSET: usize = 0;
 const ENC_DATA_LENGTH_OFFSET: usize = ENC_HASH_OFFSET + HASH_SIZE;
-const ENC_DATA_OFFSET:        usize = ENC_DATA_LENGTH_OFFSET + DLEN_SIZE;
+const ENC_DATA_OFFSET: usize = ENC_DATA_LENGTH_OFFSET + DLEN_SIZE;
 // const ENC_SIGN_OFFSET depends on DATA_LENGTH
-const ENC_MIN_SIZE:           usize = ENC_DATA_OFFSET + SIGN_SIZE;
+const ENC_MIN_SIZE: usize = ENC_DATA_OFFSET + SIGN_SIZE;
 
 const SM_HASH_OFFSET: usize = 0;
 const SM_PKEY_OFFSET: usize = SM_HASH_OFFSET + HASH_SIZE;
 const SM_SIGN_OFFSET: usize = SM_PKEY_OFFSET + PKEY_SIZE;
-const SM_TOTAL_SIZE:  usize = SM_SIGN_OFFSET + SIGN_SIZE;
+const SM_TOTAL_SIZE: usize = SM_SIGN_OFFSET + SIGN_SIZE;
 
 const DEV_PKEY_OFFSET: usize = 0;
-const DEV_TOTAL_SIZE:  usize = DEV_PKEY_OFFSET + PKEY_SIZE;
+const DEV_TOTAL_SIZE: usize = DEV_PKEY_OFFSET + PKEY_SIZE;
 
 /// Attestation status codes
 #[derive(Eq, PartialEq, Debug)]
@@ -65,7 +65,7 @@ pub enum AttestationResult {
     /// The signature of the Secure Monitor part of the report was incorrect
     InvalidSecureMonitorSignature,
     /// The signature of the enclave part of the report was incorrect
-    InvalidEnclaveSignature
+    InvalidEnclaveSignature,
 }
 
 impl fmt::Display for AttestationResult {
@@ -98,24 +98,24 @@ impl Hash {
 
     /// Convert the Hash to a byte array.
     pub fn to_bytes(&self) -> [u8; Hash::LENGTH] {
-        return self.0;
+        self.0
     }
 
     /// Get the Hash as a slice to the byte array.
-    pub fn as_bytes<'a>(&'a self) -> &'a [u8; Hash::LENGTH] {
-        return &self.0
+    pub fn as_bytes(&self) -> &[u8; Hash::LENGTH] {
+        &self.0
     }
 
     /// Create new Hash from a slice of bytes.
     pub fn from_bytes(bytes: &[u8]) -> Result<Hash, ()> {
         if bytes.len() != Hash::LENGTH {
-            return Err(()/* TODO*/);
+            return Err(() /* TODO*/);
         }
 
         let mut raw: [u8; Hash::LENGTH] = [0u8; Hash::LENGTH];
-        raw.copy_from_slice(&bytes[.. Hash::LENGTH]);
+        raw.copy_from_slice(&bytes[..Hash::LENGTH]);
 
-        return Ok(Hash(raw));
+        Ok(Hash(raw))
     }
 }
 
@@ -124,13 +124,12 @@ pub struct ReferenceValues {
     /// Enclave hash
     enc_hash: Hash,
     /// Security Monitor hash
-    sm_hash:  Hash,
+    sm_hash: Hash,
     /// Device public key
     dev_pkey: PublicKey,
 }
 
 impl ReferenceValues {
-
     /// Create a new set of reference values
     ///
     /// # Input
@@ -143,15 +142,15 @@ impl ReferenceValues {
     /// A new ReferenceValues object describing expected attestation report.
 
     pub fn new(enc: &Hash, sm: &Hash, pkey: &PublicKey) -> Self {
-        return Self{enc_hash: *enc,
-                    sm_hash:  *sm,
-                    dev_pkey: *pkey};
+        Self {
+            enc_hash: *enc,
+            sm_hash: *sm,
+            dev_pkey: *pkey,
+        }
     }
 
     /// Verify the enclave part of an attestation report
-    fn verify_enclave(&self, evidence: &EnclaveReport, nonce: &[u8])
-                      -> AttestationResult {
-
+    fn verify_enclave(&self, evidence: &EnclaveReport, nonce: &[u8]) -> AttestationResult {
         let data = evidence.data();
         if data.len() != nonce.len() || data != nonce {
             return AttestationResult::InvalidUserData;
@@ -161,36 +160,32 @@ impl ReferenceValues {
             return AttestationResult::InvalidEnclaveHash;
         }
 
-        return AttestationResult::Success;
+        AttestationResult::Success
     }
 
     /// Verify the Secure Monitor part of an attestation report
-    fn verify_security_monitor(&self, evidence: &SecurityMonitorReport)
-                      -> AttestationResult {
-
+    fn verify_security_monitor(&self, evidence: &SecurityMonitorReport) -> AttestationResult {
         if evidence.hash().unwrap() != self.sm_hash {
             return AttestationResult::InvalidSecureMonitorHash;
         }
 
-        return AttestationResult::Success;
+        AttestationResult::Success
     }
 
     /// Verify the device part of an attestation report
-    fn verify_device(&self, evidence: &DeviceIdentifier)
-                     -> AttestationResult {
-
+    fn verify_device(&self, evidence: &DeviceIdentifier) -> AttestationResult {
         match evidence.public_key() {
             Ok(key) => {
                 if key != self.dev_pkey {
                     return AttestationResult::InvalidDeviceKey;
                 }
-            },
+            }
             Err(_) => {
                 return AttestationResult::InvalidDeviceKey;
-            },
+            }
         }
 
-        return AttestationResult::Success;
+        AttestationResult::Success
     }
 
     /// Verify if an attestation evidence (report) matches given reference
@@ -207,7 +202,6 @@ impl ReferenceValues {
     /// A status code describing the result
 
     pub fn verify(&self, evidence: &Evidence, nonce: &[u8]) -> AttestationResult {
-
         // Verify that device identfier is as expected
         let result = self.verify_device(&evidence.device_identifier());
         if result != AttestationResult::Success {
@@ -217,7 +211,10 @@ impl ReferenceValues {
         // Verify that the security monitor report is signed correctly with
         // device's attestation key:
         let srep = evidence.security_monitor();
-        if !self.dev_pkey.verify(srep.report(), &srep.signature().unwrap()) {
+        if !self
+            .dev_pkey
+            .verify(srep.report(), &srep.signature().unwrap())
+        {
             return AttestationResult::InvalidSecureMonitorSignature;
         }
 
@@ -228,9 +225,12 @@ impl ReferenceValues {
         }
 
         // Verify that the enclave report is signed by the security monitor
-        let erep= evidence.enclave();
-        if !srep.public_key().unwrap().verify(erep.report(),
-                                            &erep.signature().unwrap()) {
+        let erep = evidence.enclave();
+        if !srep
+            .public_key()
+            .unwrap()
+            .verify(erep.report(), &erep.signature().unwrap())
+        {
             return AttestationResult::InvalidEnclaveSignature;
         }
 
@@ -240,7 +240,7 @@ impl ReferenceValues {
             return result;
         }
 
-        return AttestationResult::Success;
+        AttestationResult::Success
     }
 }
 
@@ -262,30 +262,28 @@ fn read_le_u64(slice: &[u8]) -> u64 {
 }
 
 impl Evidence {
-
     /// Get enclave part of the report
     pub fn enclave<'a>(&'a self) -> EnclaveReport<'a> {
-        return EnclaveReport(&self.raw[self.eoffs .. self.soffs]);
+        EnclaveReport(&self.raw[self.eoffs..self.soffs])
     }
 
     /// Get Secure Monitor part of the report
     pub fn security_monitor(&self) -> SecurityMonitorReport {
-        return SecurityMonitorReport(&self.raw[self.soffs .. self.doffs]);
+        SecurityMonitorReport(&self.raw[self.soffs..self.doffs])
     }
 
     /// Get device part of the report
     pub fn device_identifier(&self) -> DeviceIdentifier {
-        return DeviceIdentifier(&self.raw[self.doffs .. ]);
+        DeviceIdentifier(&self.raw[self.doffs..])
     }
 
     /// Get the Evidence as a slice to the byte array.
     pub fn as_bytes(&self) -> &[u8] {
-        return self.raw.as_slice();
+        self.raw.as_slice()
     }
 
     /// Create new Evidence from a slice of bytes.
     pub fn from_bytes(bytes: &[u8]) -> Result<Evidence, AttestationError> {
-
         /* Check that the data is at least of the minimum size of the report: */
         let min_length = ENC_MIN_SIZE + SM_TOTAL_SIZE + DEV_TOTAL_SIZE;
         if bytes.len() < min_length {
@@ -294,9 +292,8 @@ impl Evidence {
 
         /* Extract user data (nonce) length:*/
         let offset = ENC_OFFSET;
-        let length = read_le_u64(&bytes[offset + ENC_DATA_LENGTH_OFFSET
-                                        ..
-                                        offset + ENC_DATA_OFFSET]) as usize;
+        let length =
+            read_le_u64(&bytes[offset + ENC_DATA_LENGTH_OFFSET..offset + ENC_DATA_OFFSET]) as usize;
 
         if length > NONCE_MAX_LENGTH {
             return Err(AttestationError::BadArgument);
@@ -311,44 +308,43 @@ impl Evidence {
         let s_offset = e_offset + ENC_MIN_SIZE + length;
         let d_offset = s_offset + SM_TOTAL_SIZE;
 
-        return Ok(Evidence{raw:   bytes.to_vec(),
-                           eoffs: e_offset,
-                           soffs: s_offset,
-                           doffs: d_offset});
+        Ok(Evidence {
+            raw: bytes.to_vec(),
+            eoffs: e_offset,
+            soffs: s_offset,
+            doffs: d_offset,
+        })
     }
 }
 
 /// The enclave portion of Keystone attestation report
-pub struct EnclaveReport<'a>(&'a[u8]);
+pub struct EnclaveReport<'a>(&'a [u8]);
 
-impl <'a> EnclaveReport<'a> {
-
+impl<'a> EnclaveReport<'a> {
     /// Get length of the report in bytes
     pub fn data_length(&self) -> usize {
-        return read_le_u64(&self.0[ENC_DATA_LENGTH_OFFSET
-                                   ..
-                                   ENC_DATA_OFFSET]) as usize;
+        read_le_u64(&self.0[ENC_DATA_LENGTH_OFFSET..ENC_DATA_OFFSET]) as usize
     }
 
     /// Get byte slice containing the report data (nonce)
     pub fn data(&self) -> &[u8] {
         let offset = ENC_DATA_OFFSET;
         let length = self.data_length();
-        return &self.0[offset .. offset + length];
+        &self.0[offset..offset + length]
     }
 
     /// Get hash of the enclave
     pub fn hash(&self) -> Result<Hash, ()> {
         let offset = ENC_HASH_OFFSET;
         let length = HASH_SIZE;
-        return Hash::from_bytes(&self.0[offset .. offset + length]);
+        Hash::from_bytes(&self.0[offset..offset + length])
     }
 
     /// Get byte slice containing the full report
     pub fn report(&self) -> &[u8] {
         let offset = 0;
         let length = ENC_DATA_OFFSET + self.data_length();
-        return &self.0[offset .. offset + length];
+        &self.0[offset..offset + length]
     }
 
     /// Get signature of the report
@@ -357,34 +353,33 @@ impl <'a> EnclaveReport<'a> {
     pub fn signature(&self) -> Result<Signature, ()> {
         let offset = ENC_DATA_OFFSET + self.data_length();
         let length = SIGN_SIZE;
-        return Signature::from_bytes(&self.0[offset .. offset + length]);
+        Signature::from_bytes(&self.0[offset..offset + length])
     }
 }
 
 /// The Security Monitor portion of a Keystone attestation report
-pub struct SecurityMonitorReport<'a>(&'a[u8]);
+pub struct SecurityMonitorReport<'a>(&'a [u8]);
 
-impl <'a> SecurityMonitorReport<'a> {
-
+impl<'a> SecurityMonitorReport<'a> {
     /// Get hash of the Secure Monitor
     pub fn hash(&self) -> Result<Hash, ()> {
         let offset = SM_HASH_OFFSET;
         let length = HASH_SIZE;
-        return Hash::from_bytes(&self.0[offset .. offset + length]);
+        Hash::from_bytes(&self.0[offset..offset + length])
     }
 
     /// Get public portion of the attestation key of the Secure Monitor
     pub fn public_key(&self) -> Result<PublicKey, ()> {
         let offset = SM_PKEY_OFFSET;
         let length = PKEY_SIZE;
-        return PublicKey::from_bytes(&self.0[offset .. offset + length]);
+        PublicKey::from_bytes(&self.0[offset..offset + length])
     }
 
     /// Get byte slice containing the full report
     pub fn report(&self) -> &[u8] {
         let offset = 0;
         let length = SM_SIGN_OFFSET;
-        return &self.0[offset .. offset + length];
+        &self.0[offset..offset + length]
     }
 
     /// Get signature of the report
@@ -393,19 +388,18 @@ impl <'a> SecurityMonitorReport<'a> {
     fn signature(&self) -> Result<Signature, ()> {
         let offset = SM_SIGN_OFFSET;
         let length = SIGN_SIZE;
-        return Signature::from_bytes(&self.0[offset .. offset + length]);
+        Signature::from_bytes(&self.0[offset..offset + length])
     }
 }
 
 /// The device portion of a Keystone attestation report
-pub struct DeviceIdentifier<'a>(&'a[u8]);
+pub struct DeviceIdentifier<'a>(&'a [u8]);
 
-impl <'a> DeviceIdentifier<'a> {
-
+impl<'a> DeviceIdentifier<'a> {
     /// Get public portion of the attestation key of the device
     pub fn public_key(&self) -> Result<PublicKey, ()> {
         let offset = DEV_PKEY_OFFSET;
         let length = PKEY_SIZE;
-        return PublicKey::from_bytes(&self.0[offset .. offset + length]);
+        PublicKey::from_bytes(&self.0[offset..offset + length])
     }
 }

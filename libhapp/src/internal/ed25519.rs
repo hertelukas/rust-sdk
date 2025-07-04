@@ -8,12 +8,12 @@
 // SPDX-License-Identifier: MIT
 // Copyright (C) 2022 VTT Technical Research Centre of Finland Ltd
 
-use curve25519_dalek::edwards::EdwardsPoint;
 use curve25519_dalek::edwards::CompressedEdwardsY;
+use curve25519_dalek::edwards::EdwardsPoint;
 use curve25519_dalek::scalar::Scalar;
 
-use sha3::Sha3_512;
 use sha3::Digest;
+use sha3::Sha3_512;
 
 /// A public key
 ///
@@ -25,30 +25,29 @@ pub struct PublicKey {
 }
 
 impl PublicKey {
-
     /// Size of a public key in bytes.
     pub const LENGTH: usize = 32;
 
     /// Convert the public key to a byte array.
     pub fn to_bytes(&self) -> [u8; PublicKey::LENGTH] {
-        return self.raw;
+        self.raw
     }
 
     /// Get the public key as slice to the byte array.
-    pub fn as_bytes<'a>(&'a self) -> &'a [u8; PublicKey::LENGTH] {
-        return &self.raw
+    pub fn as_bytes(&self) -> &[u8; PublicKey::LENGTH] {
+        &self.raw
     }
 
     /// Create new PulibKey from a slice of bytes.
     pub fn from_bytes(bytes: &[u8]) -> Result<PublicKey, ()> {
         if bytes.len() != PublicKey::LENGTH {
-            return Err(()/* TODO*/);
+            return Err(() /* TODO*/);
         }
 
         let mut raw: [u8; PublicKey::LENGTH] = [0u8; PublicKey::LENGTH];
-        raw.copy_from_slice(&bytes[.. PublicKey::LENGTH]);
+        raw.copy_from_slice(&bytes[..PublicKey::LENGTH]);
 
-        Ok(PublicKey{raw: raw})
+        Ok(PublicKey { raw })
     }
 
     /// Verify a 'signature' of a 'msg' using a PublicKey
@@ -64,15 +63,14 @@ impl PublicKey {
     /// Returns 'true' or 'false' depending if the verification succeeds or not
 
     #[allow(non_snake_case)]
-    pub fn verify(&self, msg: &[u8], signature: &Signature) -> bool
-    {
+    pub fn verify(&self, msg: &[u8], signature: &Signature) -> bool {
         let mut h = Sha3_512::new();
-        let sig_r = compressed_point_from_bytes(&signature.as_bytes()[.. 32]).unwrap();
-        let sig_s = scalar_from_bytes(&signature.as_bytes()[32 ..]).unwrap();
-        let sig_A = point_from_bytes(&self.as_bytes()[.. 32]).unwrap();
+        let sig_r = compressed_point_from_bytes(&signature.as_bytes()[..32]).unwrap();
+        let sig_s = scalar_from_bytes(&signature.as_bytes()[32..]).unwrap();
+        let sig_A = point_from_bytes(&self.as_bytes()[..32]).unwrap();
         let sig_R = match sig_r.decompress() {
             Some(x) => x,
-            None => return false
+            None => return false,
         };
 
         if sig_R.is_small_order() || sig_A.is_small_order() {
@@ -81,12 +79,12 @@ impl PublicKey {
 
         h.update(sig_r.as_bytes());
         h.update(self.as_bytes());
-        h.update(&msg);
+        h.update(msg);
 
         let k = Scalar::from_hash(h);
         let R = EdwardsPoint::vartime_double_scalar_mul_basepoint(&k, &(-sig_A), &sig_s);
 
-        return R == sig_R;
+        R == sig_R
     }
 }
 
@@ -98,48 +96,47 @@ pub struct Signature {
 }
 
 impl Signature {
-
     /// Size of a signature in bytes.
     pub const LENGTH: usize = 64;
 
     /// Convert the Signature to a byte array.
     pub fn to_bytes(&self) -> [u8; Signature::LENGTH] {
-        return self.raw;
+        self.raw
     }
 
     /// Get the Signature as a slice to the byte array.
-    pub fn as_bytes<'a>(&'a self) -> &'a [u8; Signature::LENGTH] {
-        return &self.raw
+    pub fn as_bytes(&self) -> &[u8; Signature::LENGTH] {
+        &self.raw
     }
 
     /// Create new Signature from a slice of bytes.
     pub fn from_bytes(bytes: &[u8]) -> Result<Signature, ()> {
         if bytes.len() != Signature::LENGTH {
-            return Err(()/* TODO*/);
+            return Err(() /* TODO*/);
         }
 
         let mut raw: [u8; Signature::LENGTH] = [0u8; Signature::LENGTH];
-        raw.copy_from_slice(&bytes[.. Signature::LENGTH]);
+        raw.copy_from_slice(&bytes[..Signature::LENGTH]);
 
-        Ok(Signature{raw: raw})
+        Ok(Signature { raw })
     }
 }
 
 fn compressed_point_from_bytes(bytes: &[u8]) -> Option<CompressedEdwardsY> {
-    match <[u8; 32]>::try_from(&bytes[.. 32]) {
-        Ok(x)  => return Some(CompressedEdwardsY(x)),
-        Err(_) => return None
+    match <[u8; 32]>::try_from(&bytes[..32]) {
+        Ok(x) => Some(CompressedEdwardsY(x)),
+        Err(_) => None,
     }
 }
 
 fn point_from_bytes(bytes: &[u8]) -> Option<EdwardsPoint> {
     if let Some(point) = compressed_point_from_bytes(&bytes[..32]) {
-        if let Some(x) =  point.decompress() {
+        if let Some(x) = point.decompress() {
             return Some(x);
         }
     }
 
-    return None
+    None
 }
 
 fn scalar_from_bytes(bytes: &[u8]) -> Option<Scalar> {
@@ -147,8 +144,8 @@ fn scalar_from_bytes(bytes: &[u8]) -> Option<Scalar> {
         return None;
     }
 
-    match <[u8; 32]>::try_from(&bytes[.. 32]) {
-        Ok(x)  => return Some(Scalar::from_bits(x)),
-        Err(_) => return None
+    match <[u8; 32]>::try_from(&bytes[..32]) {
+        Ok(x) => Some(Scalar::from_bits(x)),
+        Err(_) => None,
     }
 }
