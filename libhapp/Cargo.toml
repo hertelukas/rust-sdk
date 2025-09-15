@@ -15,7 +15,7 @@ default-target          = "riscv64gc-unknown-linux-gnu"
 
 [dependencies]
 rand             = "0.8.5"
-curve25519-dalek = "3.2.1"
+curve25519-dalek = {version = "4.0.0", features = ["digest"]}
 sha3             = "0.9.1"
 nix              = "0.24.1"
 elf_rs           = "0.2.0"

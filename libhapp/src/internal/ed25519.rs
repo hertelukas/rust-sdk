@@ -12,6 +12,7 @@ use curve25519_dalek::edwards::CompressedEdwardsY;
 use curve25519_dalek::edwards::EdwardsPoint;
 use curve25519_dalek::scalar::Scalar;
 
+use sha3::digest::FixedOutput;
 use sha3::Digest;
 use sha3::Sha3_512;
 
@@ -81,7 +82,8 @@ impl PublicKey {
         h.update(self.as_bytes());
         h.update(msg);
 
-        let k = Scalar::from_hash(h);
+        let hash_bytes = h.finalize_fixed();
+        let k = Scalar::from_bytes_mod_order_wide(hash_bytes.as_slice().try_into().unwrap());
         let R = EdwardsPoint::vartime_double_scalar_mul_basepoint(&k, &(-sig_A), &sig_s);
 
         R == sig_R
@@ -145,7 +147,7 @@ fn scalar_from_bytes(bytes: &[u8]) -> Option<Scalar> {
     }
 
     match <[u8; 32]>::try_from(&bytes[..32]) {
-        Ok(x) => Some(Scalar::from_bits(x)),
+        Ok(x) => Some(Scalar::from_bytes_mod_order(x)),
         Err(_) => None,
     }
 }
